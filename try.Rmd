@@ -1,0 +1,104 @@
+```{r}
+library(r5r)
+library(sf)
+library(dplyr)
+library(data.table)
+library(ggplot2)
+```
+
+```{r}
+options(java.parameters = "-Xmx5G")
+```
+
+
+
+```{r}
+# 读取GeoPackage文件
+gpk_file <- "data/poi-school.gpkg"
+schools <- st_read(gpk_file)
+
+# 获取当前坐标系
+current_crs <- st_crs(schools)
+# 如果当前坐标系不是WGS 84，则转换为WGS 84
+if (current_crs != 4326) {
+  schools <- st_transform(schools, crs = 4326)
+}
+# 提取经纬度坐标
+coords <- st_coordinates(schools)
+
+# 将经纬度坐标添加到数据框中
+schools$lon <- coords[, "X"]
+schools$lat <- coords[, "Y"]
+
+# （可选）去掉GEOMETRY列
+schools <- st_drop_geometry(schools)
+
+schools <- schools %>% rename(id = ref_no)
+
+```
+
+```{r}
+# 保存为CSV文件
+write.csv(schools, "poi-school.csv", row.names = FALSE)
+
+```
+
+## 下载和设置交通网络数据
+
+```{r}
+# 设置交通网络数据路径
+osm_file <- "data/greater-london-latest.osm.pbf"
+gtfs_file <- "data/improved-gtfs-london-dft.zip"
+
+# 构建R5网络
+r5r_core <- setup_r5(data_path = "data")
+
+
+```
+
+
+
+
+
+```{r}
+mode <- c("WALK", "TRANSIT")
+max_walk_time <- 30 # in minutes
+travel_time_cutoff <- 30 # in minutes
+departure_datetime <- as.POSIXct("12-04-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
+time_window <- 30 # in minutes
+percentiles <- 50
+
+orgpoints <- fread(file.path("HexGrid_1km.csv"))
+destpoints <- fread(file.path("poi-school.csv"))
+
+orgpoints_first_300 <- slice(orgpoints, 1:300)
+
+```
+
+
+```{r}
+travel_times <- accessibility(r5r_core,
+                                   origins = orgpoints_first_300,
+                                   destinations = destpoints,
+                                   mode = mode,
+                                  opportunities_colnames = c("pos_accuracy"),
+                                  decay_function = "step",
+                                  cutoffs = travel_time_cutoff,
+                                  departure_datetime = departure_datetime,
+                                  max_walk_time = max_walk_time,
+                                  time_window = time_window,
+                                  percentiles = percentiles,
+                                  progress = TRUE)
+```
+
+
+```{r}
+ggplot(data = travel_times, aes(x = id, y = accessibility)) +
+  geom_point(color = "blue") +
+  labs(title = "Travel Time Distribution",
+       x = "id",
+       y = "num")
+```
+
+
+
