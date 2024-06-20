@@ -1,0 +1,156 @@
+```{r}
+library(r5r)
+library(sf)
+library(dplyr)
+library(data.table)
+library(ggplot2)
+library(tmap)
+```
+
+```{r}
+options(java.parameters = "-Xmx5G")
+```
+
+
+
+```{r}
+# 读取GeoPackage文件
+gpk_file <- "Data/poi-school.gpkg"
+schools <- st_read(gpk_file)
+
+london_boroughs <- st_read("Data/london_borough/London_Borough_Excluding_MHW.shp")
+
+
+# 获取当前坐标系
+current_crs <- st_crs(schools)
+# 如果当前坐标系不是WGS 84，则转换为WGS 84
+if (current_crs != 4326) {
+  schools <- st_transform(schools, crs = 4326)
+}
+# 提取经纬度坐标
+coords <- st_coordinates(schools)
+
+# 将经纬度坐标添加到数据框中
+schools$lon <- coords[, "X"]
+schools$lat <- coords[, "Y"]
+
+# （可选）去掉GEOMETRY列
+schools <- st_drop_geometry(schools)
+
+schools <- schools %>% rename(id = ref_no)
+
+```
+
+
+```{r}
+# 保存为CSV文件
+write.csv(schools, "Data/location/poi-school.csv", row.names = FALSE)
+
+```
+
+
+
+```{r}
+school_sf <- st_as_sf(schools, coords = c("lon", "lat"), crs = 4326)
+
+london_boroughs <- st_transform(london_boroughs, st_crs(school_sf))
+school_within_boroughs <- school_sf[london_boroughs, ]
+
+
+```
+
+```{r}
+orgpoints <- fread(file.path("Data/location/HexGrid_1km.csv"))
+#destpoints <- fread(file.path("Data/location/poi-school.csv"))
+
+orgpoints_sf <- st_as_sf(orgpoints, coords = c("lon", "lat"), crs = 4326)
+orgpoints_within_boroughs <- orgpoints_sf[london_boroughs, ]
+
+destpoints <- school_within_boroughs
+
+tmap_mode("plot")
+tm_shape(london_boroughs) +
+  tm_polygons(col = NA, alpha = 0.5) +
+tm_shape(school_within_boroughs) +
+  tm_dots(col = "blue")
+```
+
+```{r}
+# 设置交通网络数据路径
+osm_file <- "Data/greater-london-latest.osm.pbf"
+gtfs_file <- "Data/improved-gtfs-london-dft.zip"
+
+# 构建R5网络
+r5r_core <- setup_r5(data_path = "Data")
+
+```
+
+
+```{r}
+filtered_destpoints <- destpoints %>%
+  filter(classname == "First, Primary and Infant Schools")
+```
+
+
+
+```{r}
+mode <- c("WALK", "TRANSIT")
+max_walk_time <- 15 # in minutes
+travel_time_cutoff <- 15 # in minutes
+departure_datetime <- as.POSIXct("12-04-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
+time_window <- 15 # in minutes
+percentiles <- 50
+
+travel_times <- accessibility(r5r_core,
+                                   origins = orgpoints_within_boroughs,
+                                   destinations = filtered_destpoints,
+                                   mode = mode,
+                                  opportunities_colnames = c("pos_accuracy"),
+                                  decay_function = "step",
+                                  cutoffs = travel_time_cutoff,
+                                  departure_datetime = departure_datetime,
+                                  max_walk_time = max_walk_time,
+                                  time_window = time_window,
+                                  percentiles = percentiles,
+                                  progress = TRUE)
+```
+
+
+```{r}
+# 提取 lon 和 lat 列
+coordinates <- st_coordinates(orgpoints_within_boroughs)
+
+# 合并到原始数据框
+orgpoints_within_boroughs_lon_lat <- orgpoints_within_boroughs
+orgpoints_within_boroughs_lon_lat$lon <- coordinates[, "X"]
+orgpoints_within_boroughs_lon_lat$lat <- coordinates[, "Y"]
+
+orgpoints_within_boroughs_lon_lat <- st_drop_geometry(orgpoints_within_boroughs_lon_lat)
+
+
+travel_times$id <- as.numeric(travel_times$id)
+merged_travel_times <- left_join(travel_times, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
+merged_travel_times_sf <- st_as_sf(merged_travel_times, coords = c("lon", "lat"), crs = 4326)
+
+
+```
+
+
+
+```{r}
+# 绘制 London Boroughs 基础地图，并叠加 merged_data 的点数据
+# 绘制地图，并叠加点数据
+ggplot() +
+  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
+  geom_sf(data = merged_travel_times_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
+  scale_color_gradientn(colors = c("lightgray", "deeppink", "red"), 
+                        values = scales::rescale(c(0, 5, 10)), 
+                        limits = c(0, 10), 
+                        breaks = c(0, 2, 4, 6, 8, 10),
+                        labels = c("0", "2", "4", "6", "8", "10")) +  
+  labs(title = "Accessibility Mapped onto London Boroughs",
+       color = "Accessibility") +
+  theme_minimal()
+```
+
+

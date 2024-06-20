@@ -14,7 +14,7 @@ options(java.parameters = "-Xmx5G")
 
 ```{r}
 # 读取GeoPackage文件
-gpk_file <- "data/poi-school.gpkg"
+gpk_file <- "Data/poi-school.gpkg"
 schools <- st_read(gpk_file)
 
 # 获取当前坐标系
@@ -39,19 +39,29 @@ schools <- schools %>% rename(id = ref_no)
 
 ```{r}
 # 保存为CSV文件
-write.csv(schools, "poi-school.csv", row.names = FALSE)
+write.csv(schools, "Data/location/poi-school.csv", row.names = FALSE)
 
 ```
+
+```{r}
+london_boroughs <- st_read("Data/london_borough/London_Borough_Excluding_MHW.shp")
+
+ggplot(data = london_boroughs) +
+  geom_sf() +
+  labs(title = "London Boroughs",
+       subtitle = "Excluding MHW")
+```
+
 
 ## 下载和设置交通网络数据
 
 ```{r}
 # 设置交通网络数据路径
-osm_file <- "data/greater-london-latest.osm.pbf"
-gtfs_file <- "data/improved-gtfs-london-dft.zip"
+osm_file <- "Data/greater-london-latest.osm.pbf"
+gtfs_file <- "Data/improved-gtfs-london-dft.zip"
 
 # 构建R5网络
-r5r_core <- setup_r5(data_path = "data")
+r5r_core <- setup_r5(data_path = "Data")
 
 
 ```
@@ -68,8 +78,8 @@ departure_datetime <- as.POSIXct("12-04-2024 08:00:00", format = "%d-%m-%Y %H:%M
 time_window <- 30 # in minutes
 percentiles <- 50
 
-orgpoints <- fread(file.path("HexGrid_1km.csv"))
-destpoints <- fread(file.path("poi-school.csv"))
+orgpoints <- fread(file.path("Data/location/HexGrid_1km.csv"))
+destpoints <- fread(file.path("Data/location/poi-school.csv"))
 
 orgpoints_first_300 <- slice(orgpoints, 1:300)
 
@@ -99,6 +109,48 @@ ggplot(data = travel_times, aes(x = id, y = accessibility)) +
        x = "id",
        y = "num")
 ```
+
+
+```{r}
+travel_times$id <- as.numeric(travel_times$id)
+merged_data <- left_join(travel_times, orgpoints_first_300[, c("id", "lon", "lat", "Population_sum")], by = "id")
+
+```
+
+
+```{r}
+
+```
+
+```{r}
+london_boroughs <- st_transform(london_boroughs, st_crs(merged_data_sf))
+
+```
+
+
+
+```{r}
+merged_data_sf <- st_as_sf(merged_data, coords = c("lon", "lat"), crs = 4326)
+
+points_within_boroughs <- merged_data_sf[london_boroughs, ]
+
+
+
+# 绘制 London Boroughs 基础地图，并叠加 merged_data 的点数据
+ggplot() +
+  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
+  geom_sf(data = points_within_boroughs, aes(color = accessibility, size = accessibility), alpha = 0.7) +  # 叠加点数据
+  scale_color_viridis_c(option = "plasma") +  # 使用 Viridis 色标
+  labs(title = "Accessibility Mapped onto London Boroughs",
+       color = "Accessibility",
+       size = "Accessibility") +
+  theme_minimal()
+
+
+```
+
+
+
 
 
 
