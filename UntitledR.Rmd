@@ -83,16 +83,22 @@ r5r_core <- setup_r5(data_path = "Data")
 
 
 ```{r}
+#primary 
 filtered_destpoints <- destpoints %>%
   filter(classname == "First, Primary and Infant Schools")
 
+#私人
 private_destpoints <- destpoints %>%
   filter(classname == "Independent and Preparatory Schools")
+
+#secondary
+secondary_destpoints <- destpoints %>%
+  filter(classname == "Broad Age Range and Secondary State Schools")
 
 ```
 
 
-##public school 30分钟可达性
+##模版
 ```{r}
 mode <- c("WALK", "TRANSIT")
 max_walk_time <- 15 # in minutes
@@ -170,13 +176,245 @@ ggplot(grouped_data, aes(x = accessibility, y = total_population)) +
   theme_minimal()
 ```
 
+#正式开始！！！！！！
+Primary: 13min walk / car
+Secondary: 25min walk / car / walk+bus 
 
-##private school 30分钟可达性
+
+##primary 13min walk
 ```{r}
+mode_walk <- c("WALK")
+max_walk_time <- 13 # in minutes
+travel_time_cutoff <- 13 # in minutes
+departure_datetime <- as.POSIXct("20-06-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
+time_window <- 13 # in minutes
+percentiles <- 50
+
+travel_times_primary <- accessibility(r5r_core,
+                                   origins = orgpoints_within_boroughs,
+                                   destinations = filtered_destpoints,
+                                   mode = mode_walk,
+                                  opportunities_colnames = c("pos_accuracy"),
+                                  decay_function = "step",
+                                  cutoffs = travel_time_cutoff,
+                                  departure_datetime = departure_datetime,
+                                  max_walk_time = max_walk_time,
+                                  time_window = time_window,
+                                  percentiles = percentiles,
+                                  progress = TRUE)
+```
+
+```{r}
+travel_times_primary$id <- as.numeric(travel_times_primary$id)
+merged_travel_times_primary <- left_join(travel_times_primary, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
+merged_travel_times_primary_sf <- st_as_sf(merged_travel_times_primary, coords = c("lon", "lat"), crs = 4326)
+
+ggplot() +
+  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
+  geom_sf(data = merged_travel_times_primary_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
+  scale_color_gradientn(
+    colors = c("lightgray", "pink", "orange", "yellow", "deeppink", "purple"), 
+    values = scales::rescale(c(0, 1, 2, 3, 4, 5, 6)), 
+    limits = c(0, 6), 
+    breaks = c(0, 1, 2, 3, 4, 5, 6),
+    labels = c("0", "1", "2", "3", "4", "5", "6")
+  ) +    
+  labs(title = "Primary School Accessibility by walk in London",
+       color = "Accessibility") +
+  theme_minimal()
+```
+
+
+##primary 13min car
+```{r}
+mode_car <- c("CAR")
+max_walk_time <- 13 # in minutes
+travel_time_cutoff <- 13 # in minutes
+departure_datetime <- as.POSIXct("20-06-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
+time_window <- 13 # in minutes
+percentiles <- 50
+
+travel_times_primary_car <- accessibility(r5r_core,
+                                   origins = orgpoints_within_boroughs,
+                                   destinations = filtered_destpoints,
+                                   mode = mode_car,
+                                  opportunities_colnames = c("pos_accuracy"),
+                                  decay_function = "step",
+                                  cutoffs = travel_time_cutoff,
+                                  departure_datetime = departure_datetime,
+                                  max_walk_time = max_walk_time,
+                                  time_window = time_window,
+                                  percentiles = percentiles,
+                                  progress = TRUE)
+```
+
+```{r}
+travel_times_primary_car$id <- as.numeric(travel_times_primary$id)
+merged_travel_times_primary_car <- left_join(travel_times_primary_car, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
+merged_travel_times_primary_car_sf <- st_as_sf(merged_travel_times_primary_car, coords = c("lon", "lat"), crs = 4326)
+
+ggplot() +
+  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
+  geom_sf(data = merged_travel_times_primary_car_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
+  scale_color_gradientn(
+    colors = c("lightgray", "pink", "orange", "yellow", "deeppink", "purple", "red"), 
+    values = scales::rescale(c(0, 5, 20, 50, 100, 120, 140, 150)), 
+    limits = c(0, 150), 
+    breaks = c(0, 5, 20, 50, 100, 120, 140, 150),
+    labels = c("0", "5", "20", "50", "100", "120", "140", "150")
+  ) +   
+  labs(title = "Primary School Accessibility by carin London",
+       color = "Accessibility") +
+  theme_minimal()
+```
+
+
+##secondary 25min walk
+```{r}
+mode_walk <- c("WALK")
+max_walk_time_25 <- 25 # in minutes
+travel_time_cutoff_25 <- 25 # in minutes
+departure_datetime <- as.POSIXct("20-06-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
+time_window_25 <- 25 # in minutes
+percentiles <- 50
+
+travel_times_secondary_walk <- accessibility(r5r_core,
+                                   origins = orgpoints_within_boroughs,
+                                   destinations = secondary_destpoints,
+                                   mode = mode_walk,
+                                  opportunities_colnames = c("pos_accuracy"),
+                                  decay_function = "step",
+                                  cutoffs = travel_time_cutoff_25,
+                                  departure_datetime = departure_datetime,
+                                  max_walk_time = max_walk_time_25,
+                                  time_window = time_window_25,
+                                  percentiles = percentiles,
+                                  progress = TRUE)
+```
+
+```{r}
+travel_times_secondary_walk$id <- as.numeric(travel_times_secondary_walk$id)
+merged_travel_times_secondary_walk <- left_join(travel_times_secondary_walk, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
+merged_travel_times_secondary_walk_sf <- st_as_sf(merged_travel_times_secondary_walk, coords = c("lon", "lat"), crs = 4326)
+
+ggplot() +
+  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
+  geom_sf(data = merged_travel_times_secondary_walk_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
+  scale_color_gradientn(
+    colors = c("lightgray", "pink", "orange", "yellow", "deeppink", "purple"), 
+    values = scales::rescale(c(0, 1, 2, 3, 5, 7, 9)), 
+    limits = c(0, 9), 
+    breaks = c(0, 1, 2, 3, 5, 7, 9),
+    labels = c("0", "1", "2", "3", "5", "7", "9")
+  ) +    
+  labs(title = "Secondary School Accessibility by car in London",
+       color = "Accessibility") +
+  theme_minimal()
+```
+
+
+##secondary 25min car
+```{r}
+mode_car <- c("CAR")
+max_walk_time_25 <- 25 # in minutes
+travel_time_cutoff_25 <- 25 # in minutes
+departure_datetime <- as.POSIXct("20-06-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
+time_window_25 <- 25 # in minutes
+percentiles <- 50
+
+travel_times_secondary_car <- accessibility(r5r_core,
+                                   origins = orgpoints_within_boroughs,
+                                   destinations = secondary_destpoints,
+                                   mode = mode_car,
+                                  opportunities_colnames = c("pos_accuracy"),
+                                  decay_function = "step",
+                                  cutoffs = travel_time_cutoff_25,
+                                  departure_datetime = departure_datetime,
+                                  max_walk_time = max_walk_time_25,
+                                  time_window = time_window_25,
+                                  percentiles = percentiles,
+                                  progress = TRUE)
+```
+
+```{r}
+travel_times_secondary_car$id <- as.numeric(travel_times_secondary_car$id)
+merged_travel_times_secondary_car <- left_join(travel_times_secondary_car, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
+merged_travel_times_secondary_car_sf <- st_as_sf(merged_travel_times_secondary_car, coords = c("lon", "lat"), crs = 4326)
+
+ggplot() +
+  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
+  geom_sf(data = merged_travel_times_secondary_car_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
+  scale_color_gradientn(
+    colors = c("lightgray", "pink", "orange", "yellow", "deeppink", "purple", "red"), 
+    values = scales::rescale(c(0, 10, 20, 50, 100, 130, 160, 190)), 
+    limits = c(0, 190), 
+    breaks = c(0, 10, 20, 50, 100, 130, 160, 190),
+    labels = c("0", "10", "20", "50", "100", "130", "160", "190")
+  ) +   
+  labs(title = "Secondary School Accessibility by car in London",
+       color = "Accessibility") +
+  theme_minimal()
+```
+
+
+##secondary 25min walk+bus
+```{r}
+mode_walk_bus <- c("WALK", "BUS")
+max_walk_time_25 <- 25 # in minutes
+travel_time_cutoff_25 <- 25 # in minutes
+departure_datetime <- as.POSIXct("20-06-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
+time_window_25 <- 25 # in minutes
+percentiles <- 50
+
+travel_times_secondary_walk_bus <- accessibility(r5r_core,
+                                   origins = orgpoints_within_boroughs,
+                                   destinations = secondary_destpoints,
+                                   mode = mode_walk_bus,
+                                  opportunities_colnames = c("pos_accuracy"),
+                                  decay_function = "step",
+                                  cutoffs = travel_time_cutoff_25,
+                                  departure_datetime = departure_datetime,
+                                  max_walk_time = max_walk_time_25,
+                                  time_window = time_window_25,
+                                  percentiles = percentiles,
+                                  progress = TRUE)
+```
+
+```{r}
+travel_times_secondary_walk_bus$id <- as.numeric(travel_times_secondary_walk_bus$id)
+merged_travel_times_secondary_walk_bus <- left_join(travel_times_secondary_walk_bus, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
+merged_travel_times_secondary_walk_bus_sf <- st_as_sf(merged_travel_times_secondary_walk_bus, coords = c("lon", "lat"), crs = 4326)
+
+ggplot() +
+  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
+  geom_sf(data = merged_travel_times_secondary_walk_bus_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
+  scale_color_gradientn(
+    colors = c("lightgray", "pink", "orange", "yellow", "deeppink", "purple"), 
+    values = scales::rescale(c(0, 1, 3, 5, 7, 9, 15)), 
+    limits = c(0, 15), 
+    breaks = c(0, 1, 3, 5, 7, 9, 15),
+    labels = c("0", "1", "3", "5", "7", "9", "15")
+  ) +    
+  labs(title = "Secondary School Accessibility by walk and bus in London",
+       color = "Accessibility") +
+  theme_minimal()
+```
+
+
+
+##private 13min walk
+```{r}
+mode_walk <- c("WALK")
+max_walk_time <- 13 # in minutes
+travel_time_cutoff <- 13 # in minutes
+departure_datetime <- as.POSIXct("20-06-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
+time_window <- 13 # in minutes
+percentiles <- 50
+
 travel_times_private <- accessibility(r5r_core,
                                    origins = orgpoints_within_boroughs,
                                    destinations = private_destpoints,
-                                   mode = mode,
+                                   mode = mode_walk,
                                   opportunities_colnames = c("pos_accuracy"),
                                   decay_function = "step",
                                   cutoffs = travel_time_cutoff,
@@ -186,6 +424,9 @@ travel_times_private <- accessibility(r5r_core,
                                   percentiles = percentiles,
                                   progress = TRUE)
 
+
+```
+```{r}
 travel_times_private$id <- as.numeric(travel_times_private$id)
 merged_travel_times_private <- left_join(travel_times_private, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
 merged_travel_times_private_sf <- st_as_sf(merged_travel_times_private, coords = c("lon", "lat"), crs = 4326)
@@ -193,15 +434,20 @@ merged_travel_times_private_sf <- st_as_sf(merged_travel_times_private, coords =
 ggplot() +
   geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
   geom_sf(data = merged_travel_times_private_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
-  scale_color_gradientn(colors = c("lightgray", "deeppink", "blue"), 
-                        values = scales::rescale(c(0, 5, 10)), 
-                        limits = c(0, 10), 
-                        breaks = c(0, 2, 4, 6, 8, 10),
-                        labels = c("0", "2", "4", "6", "8", "10")) +  
-  labs(title = "private schools' Accessibility Mapped onto London Boroughs",
+  scale_color_gradientn(
+    colors = c("lightgray", "pink", "orange", "yellow", "deeppink", "purple"), 
+    values = scales::rescale(c(0, 1, 2, 3, 4, 6, 9)), 
+    limits = c(0, 9), 
+    breaks = c(0, 1, 2, 3, 4, 6, 9),
+    labels = c("0", "1", "2", "3", "4", "6", "9")
+  ) +    
+  labs(title = "private schools' Accessibility by walk in London",
        color = "Accessibility") +
   theme_minimal()
 ```
+
+
+
 
 画个折线图(感觉画在公立学校更有意义)
 ```{r}
@@ -223,7 +469,7 @@ ggplot(grouped_data, aes(x = accessibility, y = total_population)) +
 
 ## private school 30分钟  car
 
-私立学校会选择更私人的出行方式，换成car（car的分割得增加，图错了）
+私立学校会选择更私人的出行方式，换成car（car的分割得增加，图错了），且该校学生对出行时间的要求更加严格，
 
 ```{r}
 mode2 <- c("CAR")
@@ -366,6 +612,14 @@ borough_summary <- merged_travel_times_sf %>%
 london_boroughs <- london_boroughs %>%
   left_join(borough_summary, by = "NAME")
 ```
+
+
+以上对于Public 30分钟 公共交通可达性来说，平均交通可达性最高的三个borough是City of London，Islington，Westminster。（找一下有没有资料显示他们交通很发达之类的）
+
+
+
+
+
 
 
 
