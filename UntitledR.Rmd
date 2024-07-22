@@ -263,7 +263,7 @@ ggplot() +
     breaks = c(0, 5, 20, 50, 100, 120, 140, 150),
     labels = c("0", "5", "20", "50", "100", "120", "140", "150")
   ) +   
-  labs(title = "Primary School Accessibility by carin London",
+  labs(title = "Primary School Accessibility by car in London",
        color = "Accessibility") +
   theme_minimal()
 ```
@@ -307,7 +307,7 @@ ggplot() +
     breaks = c(0, 1, 2, 3, 5, 7, 9),
     labels = c("0", "1", "2", "3", "5", "7", "9")
   ) +    
-  labs(title = "Secondary School Accessibility by car in London",
+  labs(title = "Secondary School Accessibility by walk in London",
        color = "Accessibility") +
   theme_minimal()
 ```
@@ -453,7 +453,7 @@ ggplot() +
 ```{r}
 
 # 按accessibility分组，并累加Population_sum
-grouped_data <- merged_travel_times_private %>%
+grouped_data <- merged_travel_times_private_sf %>%
   group_by(accessibility) %>%
   summarize(total_population = sum(Population_sum, na.rm = TRUE))
 
@@ -462,7 +462,7 @@ ggplot(grouped_data, aes(x = accessibility, y = total_population)) +
   geom_line() +
   geom_point() +
   labs(title = "总人口数量与可达性的关系",
-       x = "可达性 (accessibility)",
+       x = "可达性 (private school accessibility)",
        y = "总人口数量 (total_population)") +
   theme_minimal()
 ```
@@ -472,36 +472,7 @@ ggplot(grouped_data, aes(x = accessibility, y = total_population)) +
 私立学校会选择更私人的出行方式，换成car（car的分割得增加，图错了），且该校学生对出行时间的要求更加严格，
 
 ```{r}
-mode2 <- c("CAR")
 
-travel_times_private <- accessibility(r5r_core,
-                                   origins = orgpoints_within_boroughs,
-                                   destinations = private_destpoints,
-                                   mode = mode2,
-                                  opportunities_colnames = c("pos_accuracy"),
-                                  decay_function = "step",
-                                  cutoffs = travel_time_cutoff,
-                                  departure_datetime = departure_datetime,
-                                  max_walk_time = max_walk_time,
-                                  time_window = time_window,
-                                  percentiles = percentiles,
-                                  progress = TRUE)
-
-travel_times_private$id <- as.numeric(travel_times_private$id)
-merged_travel_times_private <- left_join(travel_times_private, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
-merged_travel_times_private_sf <- st_as_sf(merged_travel_times_private, coords = c("lon", "lat"), crs = 4326)
-
-ggplot() +
-  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
-  geom_sf(data = merged_travel_times_private_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
-  scale_color_gradientn(colors = c("lightgray", "deeppink", "blue"), 
-                        values = scales::rescale(c(0, 1, 2, 5, 20, 30)), 
-                        limits = c(0, 30), 
-                        breaks = c(0, 1, 2, 5, 10, 20, 30),
-                        labels = c("0", "1", "2", "5", "10", "20", "30")) +  
-  labs(title = "private schools' Accessibility Mapped onto London Boroughs",
-       color = "Accessibility") +
-  theme_minimal()
 
 ```
 
@@ -596,17 +567,18 @@ ggplot() +
 1.点数总和
 2.平均可达性
 
+pri 13 walk
 ```{r}
 
-merged_travel_times_sf <- st_join(merged_travel_times_sf, london_boroughs["NAME"])
+bor_merged_travel_times_primary_sf <- st_join(merged_travel_times_primary_sf, london_boroughs["NAME"])
 
 # Calculate the average of the points and accessibility in each Borough
-borough_summary <- merged_travel_times_sf %>%
+borough_summary <- bor_merged_travel_times_primary_sf %>%
   st_drop_geometry() %>%  
   group_by(NAME) %>%  
   summarise(
-    fir_pri_int_count = n(),  # average of the points
-    fir_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+    pri_walk_count = n(),  # average of the points
+    pri_walk_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
   )
 
 london_boroughs <- london_boroughs %>%
@@ -614,14 +586,131 @@ london_boroughs <- london_boroughs %>%
 ```
 
 
-以上对于Public 30分钟 公共交通可达性来说，平均交通可达性最高的三个borough是City of London，Islington，Westminster。（找一下有没有资料显示他们交通很发达之类的）
+以上对于primary 13分钟 walk可达性来说，平均交通可达性最高的三个borough是Islington，Tower Hamlets,	
+Hackney。（找一下有没有资料显示他们交通很发达之类的）
+
+
+pri 13 car
+```{r}
+
+bor_merged_travel_times_primary_car_sf <- st_join(merged_travel_times_primary_car_sf, london_boroughs["NAME"])
+
+# Calculate the average of the points and accessibility in each Borough
+borough_summary <- bor_merged_travel_times_primary_car_sf %>%
+  st_drop_geometry() %>%  
+  group_by(NAME) %>%  
+  summarise(
+    pri_car_count = n(),  # average of the points
+    pri_car_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+  )
+
+london_boroughs <- london_boroughs %>%
+  left_join(borough_summary, by = "NAME")
+```
+
+
+sec 25 walk
+```{r}
+
+bor_merged_travel_times_secondary_walk_sf <- st_join(merged_travel_times_secondary_walk_sf, london_boroughs["NAME"])
+
+# Calculate the average of the points and accessibility in each Borough
+borough_summary <- bor_merged_travel_times_secondary_walk_sf %>%
+  st_drop_geometry() %>%  
+  group_by(NAME) %>%  
+  summarise(
+    sec_walk_count = n(),  # average of the points
+    sec_walk_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+  )
+
+london_boroughs <- london_boroughs %>%
+  left_join(borough_summary, by = "NAME")
+
+```
+
+
+sec 25 car
+```{r}
+
+bor_merged_travel_times_secondary_car_sf <- st_join(merged_travel_times_secondary_car_sf, london_boroughs["NAME"])
+
+# Calculate the average of the points and accessibility in each Borough
+borough_summary <- bor_merged_travel_times_secondary_car_sf %>%
+  st_drop_geometry() %>%  
+  group_by(NAME) %>%  
+  summarise(
+    sec_car_count = n(),  # average of the points
+    sec_car_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+  )
+
+london_boroughs <- london_boroughs %>%
+  left_join(borough_summary, by = "NAME")
+```
 
 
 
+sec 25 walk+bus
+```{r}
+
+bor_merged_travel_times_secondary_walk_bus_sf <- st_join(merged_travel_times_secondary_walk_bus_sf, london_boroughs["NAME"])
+
+# Calculate the average of the points and accessibility in each Borough
+borough_summary <- bor_merged_travel_times_secondary_walk_bus_sf %>%
+  st_drop_geometry() %>%  
+  group_by(NAME) %>%  
+  summarise(
+    sec_walk_bus_count = n(),  # average of the points
+    sec_walk_bus_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+  )
+
+london_boroughs <- london_boroughs %>%
+  left_join(borough_summary, by = "NAME")
+```
 
 
 
+private 13 walk
+```{r}
 
+bor_merged_travel_times_private_sf <- st_join(merged_travel_times_private_sf, london_boroughs["NAME"])
+
+# Calculate the average of the points and accessibility in each Borough
+borough_summary <- bor_merged_travel_times_private_sf %>%
+  st_drop_geometry() %>%  
+  group_by(NAME) %>%  
+  summarise(
+    private_walk_count = n(),  # average of the points
+    private_walk_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+  )
+
+london_boroughs <- london_boroughs %>%
+  left_join(borough_summary, by = "NAME")
+```
+
+
+```{r}
+london_boroughs <- london_boroughs %>%
+  select(-pri_car_count, -sec_walk_count, -sec_car_count, -sec_walk_bus_count, -private_walk_count)
+```
+
+
+
+```{r}
+
+# 假设 london_boroughs 是你的数据框，按 private_walk_mean_accessibility 从大到小排序
+london_boroughs <- london_boroughs %>%
+  arrange(desc(private_walk_mean_accessibility))
+
+# 画柱状图
+ggplot(london_boroughs, aes(x = reorder(NAME, -private_walk_mean_accessibility), y = private_walk_mean_accessibility)) +
+  geom_col(fill = "skyblue", color = "black") +
+  labs(title = "Private School 各 Borough 平均可达性",
+       x = "Borough Name",
+       y = "Mean Accessibility") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # 旋转x轴标签
+```
+private school的可达性，Kensington and Chelsea遥遥领先。
 
 
 
