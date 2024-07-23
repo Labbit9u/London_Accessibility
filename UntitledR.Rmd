@@ -5,6 +5,11 @@ library(dplyr)
 library(data.table)
 library(ggplot2)
 library(tmap)
+library(tidyverse)
+library(stringr)
+library(janitor)
+
+
 ```
 
 ```{r}
@@ -564,12 +569,13 @@ ggplot() +
 ```
 
 ##用于后续分析的，计算每个borough中
-1.点数总和
+1.各Borough人口
 2.平均可达性
 
 pri 13 walk
 ```{r}
 
+rm(bor_merged_travel_times_primary_sf)
 bor_merged_travel_times_primary_sf <- st_join(merged_travel_times_primary_sf, london_boroughs["NAME"])
 
 # Calculate the average of the points and accessibility in each Borough
@@ -577,8 +583,8 @@ borough_summary <- bor_merged_travel_times_primary_sf %>%
   st_drop_geometry() %>%  
   group_by(NAME) %>%  
   summarise(
-    pri_walk_count = n(),  # average of the points
-    pri_walk_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+    count =n(),
+    pri_walk_mean_accessibility = mean(accessibility, na.rm = TRUE)
   )
 
 london_boroughs <- london_boroughs %>%
@@ -592,6 +598,7 @@ Hackney。（找一下有没有资料显示他们交通很发达之类的）
 
 pri 13 car
 ```{r}
+rm(bor_merged_travel_times_primary_car_sf)
 
 bor_merged_travel_times_primary_car_sf <- st_join(merged_travel_times_primary_car_sf, london_boroughs["NAME"])
 
@@ -600,8 +607,8 @@ borough_summary <- bor_merged_travel_times_primary_car_sf %>%
   st_drop_geometry() %>%  
   group_by(NAME) %>%  
   summarise(
-    pri_car_count = n(),  # average of the points
-    pri_car_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+    pri_car_mean_accessibility = mean(accessibility, na.rm = TRUE)
+    
   )
 
 london_boroughs <- london_boroughs %>%
@@ -611,6 +618,7 @@ london_boroughs <- london_boroughs %>%
 
 sec 25 walk
 ```{r}
+rm(bor_merged_travel_times_secondary_walk_sf)
 
 bor_merged_travel_times_secondary_walk_sf <- st_join(merged_travel_times_secondary_walk_sf, london_boroughs["NAME"])
 
@@ -619,8 +627,8 @@ borough_summary <- bor_merged_travel_times_secondary_walk_sf %>%
   st_drop_geometry() %>%  
   group_by(NAME) %>%  
   summarise(
-    sec_walk_count = n(),  # average of the points
-    sec_walk_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+    sec_walk_mean_accessibility = mean(accessibility, na.rm = TRUE)
+
   )
 
 london_boroughs <- london_boroughs %>%
@@ -631,6 +639,7 @@ london_boroughs <- london_boroughs %>%
 
 sec 25 car
 ```{r}
+rm(bor_merged_travel_times_secondary_car_sf)
 
 bor_merged_travel_times_secondary_car_sf <- st_join(merged_travel_times_secondary_car_sf, london_boroughs["NAME"])
 
@@ -639,8 +648,8 @@ borough_summary <- bor_merged_travel_times_secondary_car_sf %>%
   st_drop_geometry() %>%  
   group_by(NAME) %>%  
   summarise(
-    sec_car_count = n(),  # average of the points
-    sec_car_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+    sec_car_mean_accessibility = mean(accessibility, na.rm = TRUE)
+
   )
 
 london_boroughs <- london_boroughs %>%
@@ -651,6 +660,7 @@ london_boroughs <- london_boroughs %>%
 
 sec 25 walk+bus
 ```{r}
+rm(bor_merged_travel_times_secondary_walk_bus_sf)
 
 bor_merged_travel_times_secondary_walk_bus_sf <- st_join(merged_travel_times_secondary_walk_bus_sf, london_boroughs["NAME"])
 
@@ -659,8 +669,7 @@ borough_summary <- bor_merged_travel_times_secondary_walk_bus_sf %>%
   st_drop_geometry() %>%  
   group_by(NAME) %>%  
   summarise(
-    sec_walk_bus_count = n(),  # average of the points
-    sec_walk_bus_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+    sec_walk_bus_mean_accessibility = mean(accessibility, na.rm = TRUE)
   )
 
 london_boroughs <- london_boroughs %>%
@@ -671,6 +680,7 @@ london_boroughs <- london_boroughs %>%
 
 private 13 walk
 ```{r}
+rm(bor_merged_travel_times_private_sf)
 
 bor_merged_travel_times_private_sf <- st_join(merged_travel_times_private_sf, london_boroughs["NAME"])
 
@@ -679,18 +689,12 @@ borough_summary <- bor_merged_travel_times_private_sf %>%
   st_drop_geometry() %>%  
   group_by(NAME) %>%  
   summarise(
-    private_walk_count = n(),  # average of the points
-    private_walk_mean_accessibility = mean(accessibility, na.rm = TRUE)  # accessibility in each Borough
+    private_walk_mean_accessibility = mean(accessibility, na.rm = TRUE)
+
   )
 
 london_boroughs <- london_boroughs %>%
   left_join(borough_summary, by = "NAME")
-```
-
-
-```{r}
-london_boroughs <- london_boroughs %>%
-  select(-pri_car_count, -sec_walk_count, -sec_car_count, -sec_walk_bus_count, -private_walk_count)
 ```
 
 
@@ -711,6 +715,155 @@ ggplot(london_boroughs, aes(x = reorder(NAME, -private_walk_mean_accessibility),
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # 旋转x轴标签
 ```
 private school的可达性，Kensington and Chelsea遥遥领先。
+
+
+
+
+加入borough数据，通过了GCSE考试的（获得中学文凭的）
+```{r}
+highest_qual <- read_csv("Data/Highest_qualification_levels.csv", na=c(" "))
+
+colnames(highest_qual) <- str_replace_all(colnames(highest_qual), " ", "_")
+
+highest_qual <- highest_qual %>% select(1:8)
+# 假设 highest_qual 是你的数据框
+highest_qual <- highest_qual %>%
+  mutate(
+    Proportion_with_no_qualifications = as.numeric(str_replace(Proportion_with_no_qualifications, "%", "")),
+    Proportion_with_GCSE_grades_A_C_or_equivalent = as.numeric(str_replace(Proportion_with_GCSE_grades_A_C_or_equivalent, "%", "")),
+    Proportion_with_GCE_A_level_or_equivalent = as.numeric(str_replace(Proportion_with_GCE_A_level_or_equivalent, "%", "")),
+    Proportion_with_higher_education = as.numeric(str_replace(Proportion_with_higher_education, "%", "")),
+    Proportion_with_a_degree_or_equivalent = as.numeric(str_replace(Proportion_with_a_degree_or_equivalent, "%", "")),
+    Proportion_with_other_qualifications = as.numeric(str_replace(Proportion_with_other_qualifications, "%", ""))
+  )
+
+highest_qual <- highest_qual %>%
+  mutate(Proportion_with_GCSE_grades_A_C_or_equivalent_and_higher = rowSums(select(., 4:8), na.rm = TRUE))
+
+
+```
+
+
+```{r}
+london_boroughs <- london_boroughs %>%
+  left_join(highest_qual %>% 
+              select(London_borough, Proportion_with_GCSE_grades_A_C_or_equivalent_and_higher),
+            by = c("NAME" = "London_borough"))
+
+write.csv(london_boroughs, "Data/london_boroughs.csv", row.names = FALSE)
+
+```
+
+try
+```{r}
+london_boroughs_try <- london_boroughs %>%
+  left_join(highest_qual %>% 
+              select(London_borough, Proportion_with_GCSE_grades_A_C_or_equivalent),
+            by = c("NAME" = "London_borough"))
+london_boroughs_try<- london_boroughs_try%>%
+  filter(Proportion_with_GCSE_grades_A_C_or_equivalent != 0 )
+```
+
+分析：
+```{r}
+#colnames(london_boroughs)
+
+selected_columns <- london_boroughs[, c("NAME",
+                                        "pri_walk_count",
+                                        "pri_walk_mean_accessibility",
+                                        "pri_car_mean_accessibility",
+                                        "sec_walk_mean_accessibility",
+                                        "sec_car_mean_accessibility",
+                                        "private_walk_mean_accessibility",
+                                        "sec_walk_bus_mean_accessibility",                                        "Proportion_with_GCSE_grades_A_C_or_equivalent_and_higher")]
+
+for (column in selected_columns) {
+  # 绘制直方图
+  p <- ggplot(london_boroughs, aes_string(x = column)) +
+    geom_histogram(binwidth = 5, fill = "blue", color = "black") +
+    labs(title = paste("Histogram of", column),
+         x = column,
+         y = "Frequency")
+  print(p)
+  
+  # 绘制箱线图
+  p <- ggplot(london_boroughs, aes_string(y = column)) +
+    geom_boxplot(fill = "blue") +
+    labs(title = paste("Boxplot of", column),
+         y = column)
+  print(p)
+}
+```
+
+
+一元线性回归
+```{r}
+Regressiondata_GCSE_level<- london_boroughs_try%>%
+  dplyr::select(sec_walk_bus_mean_accessibility, 
+                Proportion_with_GCSE_grades_A_C_or_equivalent)
+
+#I found that the unit of the density variable is "Units: [1/m^2] num," while the unit of another variable is "num." This caused an error in the calculation (specifically, 'Error in Ops.units'). To resolve this issue, I converted the density variable to a numeric format.
+#Regressiondata <- Regressiondata %>%
+ # mutate(density = as.numeric(density))
+
+#now model
+model_edu <- Regressiondata_GCSE_level %>%
+  lm(sec_walk_bus_mean_accessibility ~ Proportion_with_GCSE_grades_A_C_or_equivalent,
+     data=.)
+
+library(broom)
+#obtain coefficient statistics
+tidy(model_edu)
+glance(model_edu)
+```
+
+每个除以人口！！
+
+
+
+
+房价
+```{r}
+house_price <- read_csv("Data/house_prices.csv", na=c(" "))
+house_price<- house_price%>%
+  clean_names()
+
+london_boroughs <- london_boroughs %>%
+  left_join(house_price %>% 
+              select(area, median_of_house_price_2017),
+            by = c("NAME" = "area"))
+```
+
+
+
+```{r}
+Regressiondata_hou_pri<- london_boroughs%>%
+  dplyr::select(private_walk_mean_accessibility, 
+                median_of_house_price_2017)
+
+#I found that the unit of the density variable is "Units: [1/m^2] num," while the unit of another variable is "num." This caused an error in the calculation (specifically, 'Error in Ops.units'). To resolve this issue, I converted the density variable to a numeric format.
+#Regressiondata <- Regressiondata %>%
+ # mutate(density = as.numeric(density))
+
+#now model
+model_house <- Regressiondata_hou_pri %>%
+  lm(private_walk_mean_accessibility ~ median_of_house_price_2017,
+     data=.)
+
+library(broom)
+#obtain coefficient statistics
+tidy(model_house)
+glance(model_house)
+```
+
+
+
+
+
+
+
+
+
 
 
 
