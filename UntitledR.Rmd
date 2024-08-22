@@ -8,6 +8,7 @@ library(tmap)
 library(tidyverse)
 library(stringr)
 library(janitor)
+library(knitr)
 
 
 ```
@@ -224,9 +225,62 @@ ggplot() +
     breaks = c(0, 1, 2, 3, 4, 5, 6),
     labels = c("0", "1", "2", "3", "4", "5", "6")
   ) +    
-  labs(title = "Primary School Accessibility by walk in London",
+  labs(title = "Primary School Accessibility by walk in London (13min)",
        color = "Accessibility") +
   theme_minimal()
+```
+
+##primary 26min walk
+```{r}
+mode_walk <- c("WALK")
+max_walk_time <- 26 # in minutes
+travel_time_cutoff <- 26 # in minutes
+departure_datetime <- as.POSIXct("20-06-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
+time_window <- 26 # in minutes
+percentiles <- 50
+
+travel_times_primary_2 <- accessibility(r5r_core,
+                                   origins = orgpoints_within_boroughs,
+                                   destinations = filtered_destpoints,
+                                   mode = mode_walk,
+                                  opportunities_colnames = c("pos_accuracy"),
+                                  decay_function = "step",
+                                  cutoffs = travel_time_cutoff,
+                                  departure_datetime = departure_datetime,
+                                  max_walk_time = max_walk_time,
+                                  time_window = time_window,
+                                  percentiles = percentiles,
+                                  progress = TRUE)
+```
+
+```{r}
+travel_times_primary_2$id <- as.numeric(travel_times_primary_2$id)
+merged_travel_times_primary_2 <- left_join(travel_times_primary_2, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
+merged_travel_times_primary_2_sf <- st_as_sf(merged_travel_times_primary_2, coords = c("lon", "lat"), crs = 4326)
+
+ggplot() +
+  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
+  geom_sf(data = merged_travel_times_primary_2_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
+  scale_color_gradientn(
+    colors = c("lightgray", "pink", "orange", "yellow", "deeppink", "purple"), 
+    values = scales::rescale(c(0, 1, 4, 7, 10, 15, 21)), 
+    limits = c(0, 21), 
+    breaks = c(0, 1, 4, 7, 10, 15, 21),
+    labels = c("0", "1", "4", "7", "10", "15", "21")
+  ) +    
+  labs(title = "Primary School Accessibility by walk in London (26min)",
+       color = "Accessibility") +
+  theme_minimal()
+```
+
+
+```{r}
+bor_merged_travel_times_primary_sf <- bor_merged_travel_times_primary_sf %>%
+  st_join(
+    bor_merged_travel_times_primary_2_sf %>% select(id, cutoff, accessibility),
+    join = st_equals
+  )
+
 ```
 
 
@@ -316,6 +370,54 @@ ggplot() +
        color = "Accessibility") +
   theme_minimal()
 ```
+
+
+
+##secondary 50min walk
+```{r}
+mode_walk <- c("WALK")
+max_walk_time_25 <- 50 # in minutes
+travel_time_cutoff_25 <- 50 # in minutes
+departure_datetime <- as.POSIXct("20-06-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
+time_window_25 <- 50 # in minutes
+percentiles <- 50
+
+travel_times_secondary_walk_2 <- accessibility(r5r_core,
+                                   origins = orgpoints_within_boroughs,
+                                   destinations = secondary_destpoints,
+                                   mode = mode_walk,
+                                  opportunities_colnames = c("pos_accuracy"),
+                                  decay_function = "step",
+                                  cutoffs = travel_time_cutoff_25,
+                                  departure_datetime = departure_datetime,
+                                  max_walk_time = max_walk_time_25,
+                                  time_window = time_window_25,
+                                  percentiles = percentiles,
+                                  progress = TRUE)
+```
+
+```{r}
+travel_times_secondary_walk_2$id <- as.numeric(travel_times_secondary_walk_2$id)
+merged_travel_times_secondary_walk_2 <- left_join(travel_times_secondary_walk_2, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
+merged_travel_times_secondary_walk_2_sf <- st_as_sf(merged_travel_times_secondary_walk_2, coords = c("lon", "lat"), crs = 4326)
+
+ggplot() +
+  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
+  geom_sf(data = merged_travel_times_secondary_walk_2_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
+  scale_color_gradientn(
+    colors = c("lightgray", "pink", "orange", "yellow", "deeppink", "purple"), 
+    values = scales::rescale(c(0, 1, 4, 8, 12, 18, 23)), 
+    limits = c(0, 23), 
+    breaks = c(0, 1, 4, 8, 12, 18, 23),
+    labels = c("0", "1", "4", "8", "12", "18", "23")
+  ) +    
+  labs(title = "Secondary School Accessibility by walk in London (50min)",
+       color = "Accessibility") +
+  theme_minimal()
+```
+
+
+
 
 
 ##secondary 25min car
@@ -595,6 +697,48 @@ london_boroughs <- london_boroughs %>%
 以上对于primary 13分钟 walk可达性来说，平均交通可达性最高的三个borough是Islington，Tower Hamlets,	
 Hackney。（找一下有没有资料显示他们交通很发达之类的）
 
+26min
+```{r}
+bor_merged_travel_times_primary_2_sf <- st_join(merged_travel_times_primary_2_sf, london_boroughs["NAME"])
+
+bor_merged_travel_times_primary_sf <- bor_merged_travel_times_primary_sf %>%
+  st_join(
+    bor_merged_travel_times_primary_2_sf %>% select(id, cutoff, accessibility),
+    join = st_equals
+  )
+
+primary_walk_acc_0 <- bor_merged_travel_times_primary_sf %>%
+  filter(
+    accessibility.y < 2 * accessibility.x |
+    (accessibility.x == 0 & accessibility.y == 0)
+  )
+
+name_counts <- primary_walk_acc_0 %>%
+  group_by(NAME) %>%
+  summarize(count = n())
+
+name_counts <- name_counts %>%
+  arrange(desc(count))
+
+# 绘制柱状图
+ggplot(name_counts, aes(x = reorder(NAME, count), y = count)) +
+  geom_bar(stat = "identity", fill = "skyblue") +  # 绘制填充为浅蓝色的柱状图
+  coord_flip() +  # 翻转坐标轴，使得长的柱子在前面
+  labs(title = "Number of Data Points by Area",
+       x = "Area Name",
+       y = "Number of Data Points") +
+  theme_minimal()
+
+ggplot() +
+  geom_sf(data = london_boroughs, fill = "lightgray", color = "white") +  # 绘制伦敦行政区地图
+  geom_sf(data = primary_walk_acc_0, aes(color = accessibility.x), alpha = 0.7) +  # 叠加筛选后的点
+  scale_color_gradient(low = "blue", high = "red") +  # 渐变色表示accessibility.x的值
+  labs(title = "26min Accessibility Less Than Twice the 13min Accessibility by Walk",
+       color = "13min Accessibility") +
+  theme_minimal()
+```
+
+
 
 pri 13 car
 ```{r}
@@ -633,6 +777,45 @@ borough_summary <- bor_merged_travel_times_secondary_walk_sf %>%
 
 london_boroughs <- london_boroughs %>%
   left_join(borough_summary, by = "NAME")
+
+```
+
+50min
+```{r}
+bor_merged_travel_times_secondary_walk_2_sf <- st_join(merged_travel_times_secondary_walk_2_sf, london_boroughs["NAME"])
+
+bor_merged_travel_times_secondary_walk_sf <- bor_merged_travel_times_secondary_walk_sf %>%
+  st_join(
+    bor_merged_travel_times_secondary_walk_2_sf %>% select(id, cutoff, accessibility),
+    join = st_equals
+  )
+```
+
+
+```{r}
+# Calculate the average of the points and accessibility in each Borough
+borough_summary <- bor_merged_travel_times_secondary_walk_2_sf %>%
+  st_drop_geometry() %>%  
+  group_by(NAME) %>%  
+  summarise(
+    sec_walk_mean_accessibility_50 = mean(accessibility, na.rm = TRUE)
+
+  )
+
+london_boroughs <- london_boroughs %>%
+  left_join(borough_summary, by = "NAME")
+
+
+secondary_walk_25_50 <- london_boroughs %>%
+  select(NAME, sec_walk_mean_accessibility, sec_walk_mean_accessibility_50)
+
+secondary_walk_25_50 <- secondary_walk_25_50 %>%
+  mutate(ratio = sec_walk_mean_accessibility_50 / sec_walk_mean_accessibility)
+
+secondary_walk_25_50 <- st_drop_geometry(secondary_walk_25_50)
+
+write.csv(secondary_walk_25_50, "Data/secondary_walk_25_50.csv", row.names = FALSE)
+
 
 ```
 
@@ -969,5 +1152,78 @@ ggplot(london_boroughs, aes(x = reorder(NAME, -private_walk_mean_accessibility),
         )  # 旋转x轴标签
 ```
 
+##MSOA
+```{r}
+MSOA_boundaries <- st_read("Data/MSOA_Boundaries/MSOA_2011_EW_BFC_V3.shp")
+house_price_MSOA <- read_csv("Data/Median_price_paid_MSOA.csv", na=c(" "))
+house_price_MSOA<- house_price_MSOA%>%
+  clean_names()
+london_MSOA<- head(MSOA_boundaries, 951)
+london_MSOA <- st_transform(london_MSOA, crs = 4326)
+```
+
+```{r}
+tmap_mode("plot")
+tm_shape(london_MSOA) +
+  tm_polygons(col = NA, alpha = 0.5) 
+```
+
+
+```{r}
+rm(MSOA_merged_travel_times_private_sf)
+
+MSOA_merged_travel_times_private_sf <- st_join(merged_travel_times_private_sf, london_MSOA["MSOA11NM"])
+
+# Calculate the average of the points and accessibility in each MSOA
+MSOA_summary <- MSOA_merged_travel_times_private_sf %>%
+  st_drop_geometry() %>%  
+  group_by(MSOA11NM) %>%  
+  summarise(
+    private_walk_mean_accessibility = mean(accessibility, na.rm = TRUE)
+
+  )
+
+london_MSOA <- london_MSOA %>%
+  left_join(MSOA_summary, by = "MSOA11NM")
+```
+
+
+```{r}
+london_MSOA_house <- london_MSOA %>%
+  left_join(house_price_MSOA %>% 
+              select(msoa_name, year_ending_dec_2022),
+            by = c("MSOA11NM" = "msoa_name"))
+```
+
+
+```{r}
+Regressiondata_hou_pri_MSOA<- london_MSOA_house%>%
+  dplyr::select(private_walk_mean_accessibility, 
+                year_ending_dec_2022)
+
+#I found that the unit of the density variable is "Units: [1/m^2] num," while the unit of another variable is "num." This caused an error in the calculation (specifically, 'Error in Ops.units'). To resolve this issue, I converted the density variable to a numeric format.
+#Regressiondata <- Regressiondata %>%
+ # mutate(density = as.numeric(density))
+
+#now model
+model_house_MSOA <- Regressiondata_hou_pri_MSOA %>%
+  lm(private_walk_mean_accessibility ~ year_ending_dec_2022,
+     data=.)
+
+library(broom)
+#obtain coefficient statistics
+tidy(model_house_MSOA)
+glance(model_house_MSOA)
+```
+
+
+房价地图
+```{r}
+ggplot(london_boroughs) +
+  geom_sf(aes(fill = median_of_house_price_2017)) +
+  scale_fill_viridis_c(option = "plasma", name = "Median House Price (£)") + # 使用Viridis配色方案
+  labs(title = "London Boroughs Median House Price") +
+  theme_minimal() # 使用简洁的主题
+```
 
 
