@@ -104,28 +104,6 @@ secondary_destpoints <- destpoints %>%
 ```
 
 
-##模版
-```{r}
-mode <- c("WALK", "TRANSIT")
-max_walk_time <- 15 # in minutes
-travel_time_cutoff <- 30 # in minutes
-departure_datetime <- as.POSIXct("20-06-2024 08:00:00", format = "%d-%m-%Y %H:%M:%S")
-time_window <- 15 # in minutes
-percentiles <- 50
-
-travel_times <- accessibility(r5r_core,
-                                   origins = orgpoints_within_boroughs,
-                                   destinations = filtered_destpoints,
-                                   mode = mode,
-                                  opportunities_colnames = c("pos_accuracy"),
-                                  decay_function = "step",
-                                  cutoffs = travel_time_cutoff,
-                                  departure_datetime = departure_datetime,
-                                  max_walk_time = max_walk_time,
-                                  time_window = time_window,
-                                  percentiles = percentiles,
-                                  progress = TRUE)
-```
 
 
 ```{r}
@@ -138,51 +116,13 @@ orgpoints_within_boroughs_lon_lat$lat <- coordinates[, "Y"]
 orgpoints_within_boroughs_lon_lat <- st_drop_geometry(orgpoints_within_boroughs_lon_lat)
 
 
-travel_times$id <- as.numeric(travel_times$id)
-merged_travel_times <- left_join(travel_times, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
-merged_travel_times_sf <- st_as_sf(merged_travel_times, coords = c("lon", "lat"), crs = 4326)
-
-
 ```
 
 
 
-```{r}
-# Draw a base map of London Boroughs and overlay point data from merged_data
-# Draw the map and overlay the point data from merged_data
-ggplot() +
-  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
-  geom_sf(data = merged_travel_times_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
-  scale_color_gradientn(
-    colors = c("lightgray", "pink", "orange", "yellow", "deeppink", "purple", "red"), 
-    values = scales::rescale(c(0, 5, 10, 20, 50, 80, 120, 150)), 
-    limits = c(0, 150), 
-    breaks = c(0, 5, 10, 20, 50, 80, 120, 150),
-    labels = c("0", "5", "10", "20", "50", "80", "120", "150")
-  ) +    
-  labs(title = "Accessibility Mapped onto London Boroughs",
-       color = "Accessibility") +
-  theme_minimal()
-```
 
 
-```{r}
-# 按accessibility分组，并累加Population_sum
-grouped_data <- merged_travel_times %>%
-  group_by(accessibility) %>%
-  summarize(total_population = sum(Population_sum, na.rm = TRUE))
-
-# 绘制折线图
-ggplot(grouped_data, aes(x = accessibility, y = total_population)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "总人口数量与可达性的关系",
-       x = "可达性 (accessibility)",
-       y = "总人口数量 (total_population)") +
-  theme_minimal()
-```
-
-#正式开始！！！！！！
+#Start！！！！！！
 Primary: 13min walk / car
 Secondary: 25min walk / car / walk+bus 
 
@@ -556,7 +496,7 @@ ggplot() +
 
 
 
-画个折线图(感觉画在公立学校更有意义)
+line chart
 ```{r}
 
 # 按accessibility分组，并累加Population_sum
@@ -574,105 +514,11 @@ ggplot(grouped_data, aes(x = accessibility, y = total_population)) +
   theme_minimal()
 ```
 
-## private school 30分钟  car
-
-私立学校会选择更私人的出行方式，换成car（car的分割得增加，图错了），且该校学生对出行时间的要求更加严格，
-
-```{r}
 
 
-```
-
-## private school 30反正 步行
-可能是因为上一张图中可达性好的地方公共交通比较便利，因此可达性好，但对于高峰期的伦敦市区来说，car比地铁等公共交通更容易堵。试试走路上学
-```{r}
-mode2 <- c("WALK")
-
-travel_times_private <- accessibility(r5r_core,
-                                   origins = orgpoints_within_boroughs,
-                                   destinations = private_destpoints,
-                                   mode = mode2,
-                                  opportunities_colnames = c("pos_accuracy"),
-                                  decay_function = "step",
-                                  cutoffs = travel_time_cutoff,
-                                  departure_datetime = departure_datetime,
-                                  max_walk_time = max_walk_time,
-                                  time_window = time_window,
-                                  percentiles = percentiles,
-                                  progress = TRUE)
-
-travel_times_private$id <- as.numeric(travel_times_private$id)
-merged_travel_times_private <- left_join(travel_times_private, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
-merged_travel_times_private_sf <- st_as_sf(merged_travel_times_private, coords = c("lon", "lat"), crs = 4326)
-
-ggplot() +
-  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
-  geom_sf(data = merged_travel_times_private_sf, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
-  scale_color_gradientn(colors = c("lightgray", "deeppink", "blue"), 
-                        values = scales::rescale(c(0, 5, 10)), 
-                        limits = c(0, 10), 
-                        breaks = c(0, 2, 4, 6, 8, 10),
-                        labels = c("0", "2", "4", "6", "8", "10")) +  
-  labs(title = "private schools' Accessibility Mapped onto London Boroughs",
-       color = "Accessibility") +
-  theme_minimal()
-```
-
-## 最短时间（但失败
-```{r}
-travel_time_cutoff <- c(0, 1, 2, 5, 10, 20, 30)
-
-travel_times_priva_2 <- accessibility(r5r_core,
-                        origins = orgpoints_within_boroughs,
-                        destinations = private_destpoints,
-                        mode = mode2,
-                        opportunities_colnames = c("pos_accuracy"),
-                        decay_function = "step",
-                        cutoffs = travel_time_cutoff,
-                        departure_datetime = departure_datetime,
-                        max_walk_time = max_walk_time,
-                        time_window = time_window,
-                        percentiles = percentiles,
-                        progress = TRUE)
-
-
-travel_times_df <- as.data.frame(travel_times_priva_2)
-
-# 找到到最近医院的最短旅行时间
-travel_times_df$min_time <- apply(travel_times_df[, -1], 1, min, na.rm = TRUE)
-
-travel_times_df$color <- cut(travel_times_df$min_time, 
-                             breaks = c(0, 1, 2, 5, 10, 20, 30, 40),
-                             labels = c("0", "1", "2", "5", "10", "20", "30", "40"))
-
-result <- merge(orgpoints_within_boroughs, travel_times_df, by.x = "id", by.y = "id")
-
-
-travel_times_priva_2$id <- as.numeric(travel_times_priva_2$id)
-merged_travel_times_priva_2 <- left_join(travel_times_priva_2, orgpoints_within_boroughs_lon_lat[, c("id", "lon", "lat", "Population_sum")], by = "id")
-merged_travel_times_priva_2_sf <- st_as_sf(merged_travel_times_priva_2, coords = c("lon", "lat"), crs = 4326)
-
-ggplot() +
-  geom_sf(data = london_boroughs, fill = "white", color = "black") +  # 绘制伦敦区
-  geom_sf(data = result, aes(color = accessibility), alpha = 0.7) +  # 叠加点数据
-  scale_color_gradientn(
-    colors = c("lightgray", "pink", "orange", "yellow", "deeppink", "purple", "red"), 
-    values = scales::rescale(c(0, 1, 2, 5, 10, 20, 30, 40)), 
-    limits = c(0, 40), 
-    breaks = c(0, 1, 2, 5, 10, 20, 30, 40),
-    labels = c("0", "1", "2", "5", "10", "20", "30", "40")
-  ) +  
-  labs(title = "Private Schools' Accessibility Mapped onto London Boroughs",
-       color = "Accessibility (minutes)") +
-  theme_minimal() +
-  theme(legend.key.height = unit(1, "cm"))  # 调整图例高度
-
-
-```
-
-##用于后续分析的，计算每个borough中
-1.各Borough人口
-2.平均可达性
+##borough
+1. Population by Borough
+2. Average accessibility
 
 pri 13 walk
 ```{r}
@@ -694,8 +540,6 @@ london_boroughs <- london_boroughs %>%
 ```
 
 
-以上对于primary 13分钟 walk可达性来说，平均交通可达性最高的三个borough是Islington，Tower Hamlets,	
-Hackney。（找一下有没有资料显示他们交通很发达之类的）
 
 26min
 ```{r}
@@ -927,13 +771,12 @@ percentage_zero_accessibility_population <- (zero_accessibility_population_sum /
 # 输出结果
 cat("accessibility 为 0 的行的 Population_sum 值累加占全部人口的百分比为：", percentage_zero_accessibility_population, "%\n")
 ```
-可以看出私立学校的可达性对大部分人口来说很低，76.26293 %的伦敦人口的私立学校可达性为0.而只有1.538975 %的人能够在13分钟步行时间内可达大于4所私人学校。
+It can be seen that private school accessibility is low for the majority of the population, with 76.26293 % of the London population having 0 private school accessibility. and only 1.538975 % being able to access greater than 4 private schools within a 13 minute walk.
 
 
 
 
-
-加入borough数据，通过了GCSE考试的（获得中学文凭的）
+Add borough data for those who have passed GCSEs (for secondary school diploma)
 ```{r}
 highest_qual <- read_csv("Data/Highest_qualification_levels.csv", na=c(" "))
 
@@ -978,7 +821,7 @@ london_boroughs_try<- london_boroughs_try%>%
   filter(Proportion_with_GCSE_grades_A_C_or_equivalent != 0 )
 ```
 
-分析：
+analysis：
 ```{r}
 #colnames(london_boroughs)
 
@@ -1014,7 +857,7 @@ for (column in selected_columns) {
 ```
 
 
-一元线性回归
+linear regression
 ```{r}
 Regressiondata_GCSE_level<- london_boroughs_try%>%
   dplyr::select(sec_walk_bus_mean_accessibility, 
@@ -1041,7 +884,7 @@ glance(model_edu)
 
 
 
-房价
+house price
 ```{r}
 house_price <- read_csv("Data/house_prices.csv", na=c(" "))
 house_price<- house_price%>%
@@ -1108,8 +951,8 @@ qqline(residuals, col = "red")
 shapiro.test(residuals)
 
 ```
-正态性检验用于检查残差是否符合正态分布。使用Q-Q图
 
+The normality test is used to check whether the residuals conform to a normal distribution. Using a Q-Q plot
 
 ```{r}
 Regressiondata_hou_sec<- london_boroughs%>%
@@ -1136,7 +979,7 @@ glance(model_house2)
 
 
 ```{r}
-# 假设 london_boroughs 是你的数据框，按 private_walk_mean_accessibility 从大到小排序
+# Assuming london_boroughs is your dataframe, sorted by private_walk_mean_accessibility from largest to smallest
 london_boroughs <- london_boroughs %>%
   arrange(desc(private_walk_mean_accessibility))
 
